@@ -13,6 +13,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
+# Arkindex exécute le conteneur avec UID 999 ; vLLM doit pouvoir le résoudre.
+RUN useradd --uid 999 --no-user-group --home-dir /tmp --no-create-home arkindex
+ENV HOME=/tmp
+
 WORKDIR /src
 COPY pyproject.toml ./
 COPY worker_pictoria_vlm ./worker_pictoria_vlm
