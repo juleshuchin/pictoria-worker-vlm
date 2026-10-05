@@ -19,6 +19,6 @@ COPY worker_pictoria_vlm ./worker_pictoria_vlm
 RUN pip install --no-cache-dir .
 
 # Vérifier les imports du worker pendant la construction.
-RUN python -c "from worker_pictoria_vlm.worker import main"
+RUN python3.12 -c "from worker_pictoria_vlm.worker import main"
 
 CMD ["worker-pictoria-vlm"]
