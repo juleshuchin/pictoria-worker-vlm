@@ -1,0 +1,55 @@
+# Construit l'image Docker et la publie dans le registre du projet.
+# Image publiée : $CI_REGISTRY_IMAGE:<tag git> pour une étiquette,
+# $CI_REGISTRY_IMAGE:<branche> sinon.
+
+stages:
+  - prepare
+  - build
+
+# L'image de Kaniko embarque une liste d'autorités de certification trop ancienne
+# pour reconnaître le certificat de gitlab.huma-num.fr : on lui fournit celle d'Alpine.
+ca-certificates:
+  stage: prepare
+  image: alpine:3.20
+  script:
+    - apk add --no-cache ca-certificates >/dev/null
+    - cp /etc/ssl/certs/ca-certificates.crt "${CI_PROJECT_DIR}/ca-certificates.crt"
+    - apk add --no-cache curl jq >/dev/null
+    - >
+      curl -s -u "${CI_REGISTRY_USER}:${CI_REGISTRY_PASSWORD}"
+      "https://gitlab.huma-num.fr/jwt/auth?service=container_registry&scope=repository:${CI_PROJECT_PATH}:push,pull"
+      | jq -r .token | cut -d. -f2 | tr '_-' '/+'
+      | jq -R -c '(. + ("=" * ((4 - (length % 4)) % 4))) | @base64d | fromjson | {access, aud}'
+  artifacts:
+    paths:
+      - ca-certificates.crt
+    expire_in: 1 hour
+
+docker-build:
+  stage: build
+  needs: [ca-certificates]
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  script:
+    - export SSL_CERT_FILE="${CI_PROJECT_DIR}/ca-certificates.crt"
+    - IMAGE_TAG="${CI_COMMIT_TAG:-$CI_COMMIT_REF_SLUG}"
+    - echo "Image publiée ${CI_REGISTRY_IMAGE}:${IMAGE_TAG}"
+    - mkdir -p /kaniko/.docker
+    - >
+      AUTH=$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n');
+      echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"${AUTH}\"},\"https://${CI_REGISTRY}\":{\"auth\":\"${AUTH}\"},\"gitlab.huma-num.fr\":{\"auth\":\"${AUTH}\"}}}"
+      > /kaniko/.docker/config.json
+    - >
+      /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+      --destination "${CI_REGISTRY_IMAGE}:${IMAGE_TAG}"
+      --snapshot-mode=redo
+      --compressed-caching=false
+      --single-snapshot
+      --skip-push-permission-check
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH
+      when: manual

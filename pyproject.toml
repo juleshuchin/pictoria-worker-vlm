@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "worker-pictoria-vlm"
+version = "0.1.0"
+description = "Worker Arkindex pictorIA pour les modèles vision-langage servis par vLLM"
+requires-python = ">=3.10"
+dependencies = [
+    "arkindex-base-worker==0.6.0",
+]
+
+[project.scripts]
+worker-pictoria-vlm = "worker_pictoria_vlm.worker:main"
+
+[tool.setuptools]
+packages = ["worker_pictoria_vlm"]
