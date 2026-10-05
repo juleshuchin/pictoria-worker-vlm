@@ -4,6 +4,8 @@ import logging
 import math
 import os
 import re
+import shutil
+import tempfile
 
 from arkindex_worker.models import Element
 from arkindex_worker.worker import ElementsWorker
@@ -57,11 +59,19 @@ class PictoriaVLMWorker(ElementsWorker):
         # Compatibilité avec les consignes écrites pour le worker Qwen de Teklia
         self.user_prompt = self.user_prompt.replace("$IMAGE", "").strip()
 
+        # Les poids volumineux utilisent le volume de travail fourni par Ponos.
+        self._model_cache = tempfile.TemporaryDirectory(
+            prefix="vlm-model-", dir=self.work_dir
+        )
+        free_gib = shutil.disk_usage(self.work_dir).free / (1024 ** 3)
+        logger.info(f"Stockage des poids : {self._model_cache.name}, {free_gib:.1f} Gio libres")
+
         self.max_image_side = int(self.config.get("max_image_side") or 2000)
         self.thinking = bool(self.config.get("thinking", False))
 
         llm_kwargs = {
             "model": self.model_id,
+            "download_dir": self._model_cache.name,
             "max_model_len": int(self.config.get("max_model_len") or 16384),
             "gpu_memory_utilization": float(
                 self.config.get("gpu_memory_utilization") or 0.92
@@ -83,6 +93,13 @@ class PictoriaVLMWorker(ElementsWorker):
             logprobs=1,
         )
         logger.info("Modèle chargé.")
+
+    def cleanup(self, *args, **kwargs):
+        # Retirer uniquement notre cache avant la collecte des artefacts de la tâche.
+        cache = getattr(self, "_model_cache", None)
+        if cache is not None:
+            cache.cleanup()
+        super().cleanup(*args, **kwargs)
 
     def build_messages(self, image) -> list[dict]:
         messages = []
