@@ -8,9 +8,17 @@ ENTRYPOINT []
 ENV HF_HOME=/tmp/huggingface-cache \
     PYTHONUNBUFFERED=1
 
+# Dépendance système de python-magic, importée par arkindex-base-worker.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libmagic1 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /src
 COPY pyproject.toml ./
 COPY worker_pictoria_vlm ./worker_pictoria_vlm
 RUN pip install --no-cache-dir .
+
+# Vérifier les imports du worker pendant la construction.
+RUN python -c "from worker_pictoria_vlm.worker import main"
 
 CMD ["worker-pictoria-vlm"]
