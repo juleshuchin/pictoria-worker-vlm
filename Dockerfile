@@ -14,8 +14,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Arkindex exécute le conteneur avec UID 999 ; vLLM doit pouvoir le résoudre.
-RUN useradd --uid 999 --no-user-group --home-dir /tmp --no-create-home arkindex
-ENV HOME=/tmp
+RUN useradd --uid 999 --no-user-group --home-dir /tmp/arkindex --no-create-home arkindex
+ENV HOME=/tmp/arkindex \
+    XDG_CACHE_HOME=/tmp/arkindex/.cache
 
 WORKDIR /src
 COPY pyproject.toml ./
@@ -24,5 +25,8 @@ RUN pip install --no-cache-dir .
 
 # Vérifier les imports du worker pendant la construction.
 RUN python3.12 -c "from worker_pictoria_vlm.worker import main"
+
+# Donner au compte Arkindex les caches éventuellement créés pendant la construction.
+RUN mkdir -p /tmp/arkindex/.cache && chown -R 999 /tmp/arkindex
 
 CMD ["worker-pictoria-vlm"]
